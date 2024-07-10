@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>學習單字</title>
+    <style>
+        table, th, td {
+            border: 1px solid black;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        button {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>學習單字表格</h1>
+    <table id="wordTable">
+        <thead>
+            <tr>
+                <th>今天日期</th>
+                <th>學習單字</th>
+                <th>中文意思</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+    <br>
+    <label for="word">學習單字:</label>
+    <input type="text" id="word" name="word">
+    <label for="meaning">中文意思:</label>
+    <input type="text" id="meaning" name="meaning">
+    <button onclick="addRow()">新增</button>
+    <button onclick="downloadTable()">下載表格</button>
+    <br><br>
+    <label for="fileInput">匯入CSV檔案:</label>
+    <input type="file" id="fileInput" accept=".csv">
+    <button onclick="importCSV()">匯入</button>
+
+    <script>
+        function addRow() {
+            const table = document.getElementById("wordTable").getElementsByTagName('tbody')[0];
+            const newRow = table.insertRow();
+            const today = new Date().toISOString().slice(0, 10);
+            const word = document.getElementById("word").value;
+            const meaning = document.getElementById("meaning").value;
+
+            const cell1 = newRow.insertCell(0);
+            const cell2 = newRow.insertCell(1);
+            const cell3 = newRow.insertCell(2);
+            const cell4 = newRow.insertCell(3);
+
+            cell1.textContent = today;
+            cell2.textContent = word;
+            cell3.textContent = meaning;
+            cell4.innerHTML = '<button onclick="editRow(this)">修改</button> <button onclick="deleteRow(this)">刪除</button>';
+
+            document.getElementById("word").value = '';
+            document.getElementById("meaning").value = '';
+        }
+
+        function downloadTable() {
+            const table = document.getElementById("wordTable");
+            let csvContent = "";
+            for (let row of table.rows) {
+                let rowData = Array.from(row.cells).slice(0, 3).map(cell => cell.textContent).join(",");
+                csvContent += rowData + "\n";
+            }
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "word_table.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function importCSV() {
+            const fileInput = document.getElementById("fileInput");
+            const file = fileInput.files[0];
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    const rows = text.split('\n');
+                    const table = document.getElementById("wordTable").getElementsByTagName('tbody')[0];
+
+                    rows.forEach((row, index) => {
+                        if (index > 0 && row.trim() !== '') { // 跳過第一行表頭並且避免空行
+                            const cells = row.split(',');
+                            if (cells.length === 3) {
+                                const newRow = table.insertRow();
+                                cells.forEach((cell, index) => {
+                                    const newCell = newRow.insertCell(index);
+                                    newCell.textContent = cell.trim();
+                                });
+                                const cell4 = newRow.insertCell(3);
+                                cell4.innerHTML = '<button onclick="editRow(this)">修改</button> <button onclick="deleteRow(this)">刪除</button>';
+                            }
+                        }
+                    });
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function editRow(button) {
+            const row = button.parentNode.parentNode;
+            const cells = row.getElementsByTagName('td');
+
+            document.getElementById("word").value = cells[1].textContent;
+            document.getElementById("meaning").value = cells[2].textContent;
+
+            document.getElementById("word").focus();
+            document.getElementById("meaning").focus();
+
+            row.parentNode.removeChild(row);
+        }
+
+        function deleteRow(button) {
+            const row = button.parentNode.parentNode;
+            row.parentNode.removeChild(row);
+        }
+    </script>
+</body>
+</html>

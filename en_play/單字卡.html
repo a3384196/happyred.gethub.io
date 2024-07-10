@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>單字學習</title>
+    <style>
+        .flashcard {
+            border: 1px solid black;
+            border-radius: 10px;
+            width: 300px;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px auto;
+            font-size: 24px;
+            position: relative;
+        }
+        .flashcard .meaning {
+            display: none;
+        }
+        .flashcard.show .meaning {
+            display: block;
+        }
+        .flashcard.show .word {
+            display: none;
+        }
+        .controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .star {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+            font-size: 24px;
+        }
+        .star.marked {
+            color: gold;
+        }
+        .counter {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 18px;
+        }
+        .speaker {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            cursor: pointer;
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+    <h1>單字學習</h1>
+    <div class="flashcard" onclick="toggleMeaning()">
+        <div class="word"></div>
+        <div class="meaning"></div>
+        <div class="star" onclick="toggleStar(event)">☆</div>
+        <div class="speaker" onclick="speakWord(event)">🔊</div>
+    </div>
+    <div class="counter">
+        單字：<span id="currentWordIndex">0</span>/<span id="totalWords">0</span>
+    </div>
+    <div class="controls">
+        <button onclick="nextWord()">下一個單字</button>
+        <button onclick="downloadMarkedWords()">下載陌生單字列表</button>
+    </div>
+    <br><br>
+    <label for="fileInput">匯入CSV檔案:</label>
+    <input type="file" id="fileInput" accept=".csv">
+    <button onclick="importCSV()">匯入</button>
+
+    <script>
+        let words = [];
+        let currentIndex = 0;
+        let markedWords = [];
+
+        function toggleMeaning() {
+            const flashcard = document.querySelector('.flashcard');
+            flashcard.classList.toggle('show');
+        }
+
+        function toggleStar(event) {
+            event.stopPropagation();
+            const star = event.target;
+            star.classList.toggle('marked');
+
+            const word = words[currentIndex];
+            if (star.classList.contains('marked')) {
+                markedWords.push(word);
+            } else {
+                markedWords = markedWords.filter(w => w !== word);
+            }
+        }
+
+        function speakWord(event) {
+            event.stopPropagation();
+            const word = words[currentIndex].word;
+            const utterance = new SpeechSynthesisUtterance(word);
+            speechSynthesis.speak(utterance);
+        }
+
+        function nextWord() {
+            if (words.length > 0) {
+                currentIndex = (currentIndex + 1) % words.length;
+                updateFlashcard();
+            }
+        }
+
+        function updateFlashcard() {
+            const word = words[currentIndex];
+            document.querySelector('.flashcard .word').textContent = word.word;
+            document.querySelector('.flashcard .meaning').textContent = word.meaning;
+            const star = document.querySelector('.flashcard .star');
+            if (markedWords.includes(word)) {
+                star.classList.add('marked');
+            } else {
+                star.classList.remove('marked');
+            }
+            document.getElementById('currentWordIndex').textContent = currentIndex + 1;
+            document.getElementById('totalWords').textContent = words.length;
+        }
+
+        function downloadMarkedWords() {
+            let csvContent = "今天日期,學習單字,中文意思\n";
+            markedWords.forEach(word => {
+                csvContent += `${word.date},${word.word},${word.meaning}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "marked_words.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function importCSV() {
+            const fileInput = document.getElementById("fileInput");
+            const file = fileInput.files[0];
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    const rows = text.split('\n');
+
+                    rows.forEach((row, index) => {
+                        if (index > 0 && row.trim() !== '') { // 跳過第一行表頭並且避免空行
+                            const cells = row.split(',');
+                            if (cells.length === 3) {
+                                words.push({
+                                    date: cells[0].trim(),
+                                    word: cells[1].trim(),
+                                    meaning: cells[2].trim()
+                                });
+                            }
+                        }
+                    });
+                    updateFlashcard();
+                };
+                reader.readAsText(file);
+            }
+        }
+    </script>
+</body>
+</html>
