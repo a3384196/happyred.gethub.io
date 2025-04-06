@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>單字測驗</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        h2 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .file-input {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .file-input label {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .file-input input[type="file"] {
+            display: none;
+        }
+        .file-input span {
+            margin-left: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        .question {
+            font-size: 18px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .option {
+            margin: 10px 0;
+            font-size: 16px;
+        }
+        .option input[type="radio"] {
+            margin-right: 10px;
+        }
+        .buttons {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .buttons button {
+            padding: 10px 20px;
+            margin: 0 10px;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .buttons button:hover {
+            background-color: #e0e0e0;
+        }
+        #result {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 16px;
+            display: none;
+        }
+        #error {
+            color: red;
+            text-align: center;
+            margin-top: 10px;
+            display: none;
+        }
+        .hint-container {
+            text-align: center;
+            margin-top: 10px;
+        }
+        .hint-button {
+            padding: 5px 10px;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .hint-button:hover {
+            background-color: #e0e0e0;
+        }
+        .hint-text {
+            font-size: 14px;
+            color: #666;
+            text-align: center;
+            margin-top: 5px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>單字測驗</h2>
+        <div class="file-input">
+            <label for="csvFile">匯入CSV檔案</label>
+            <span id="fileName">word_table_with_examples.csv</span>
+            <input type="file" id="csvFile" accept=".csv" onchange="loadCSV()">
+        </div>
+        <div id="error"></div>
+        <div id="question" class="question" style="display:none"></div>
+        <div class="hint-container">
+            <button class="hint-button" id="hintBtn" onclick="showHint()" style="display:none">顯示提示</button>
+            <div id="hint" class="hint-text"></div>
+        </div>
+        <div id="options"></div>
+        <div class="buttons">
+            <button onclick="checkAnswer()" id="submitBtn" style="display:none">提交答案</button>
+            <button onclick="nextQuestion()" id="nextBtn" style="display:none">下一題</button>
+        </div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        let words = [];
+        let usedQuestions = [];
+        let currentQuestion;
+        let correctAnswer;
+        let score = 0;
+        let totalQuestions = 0;
+
+        function loadCSV() {
+            const file = document.getElementById('csvFile').files[0];
+            if (!file) {
+                showError('請選擇一個CSV檔案！');
+                return;
+            }
+
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('error').style.display = 'none';
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                try {
+                    words = parseCSV(text);
+                    if (words.length === 0) {
+                        showError('CSV檔案中沒有有效的單字資料！');
+                        return;
+                    }
+                    totalQuestions = words.length;
+                    console.log('Parsed words:', words);
+                    getRandomQuestion();
+                } catch (err) {
+                    showError('解析CSV檔案時發生錯誤：' + err.message);
+                }
+            };
+            reader.onerror = function() {
+                showError('無法讀取CSV檔案！');
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function parseCSV(csv) {
+            const lines = csv.trim().split('\n');
+            const result = [];
+            if (lines.length < 2) {
+                throw new Error('CSV檔案至少需要標題行和一行資料');
+            }
+
+            const headers = lines[0].split(',').map(h => h.trim());
+            console.log('Headers:', headers);
+
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                const data = [];
+                let currentField = '';
+                let insideQuotes = false;
+
+                for (let char of line) {
+                    if (char === '"') {
+                        insideQuotes = !insideQuotes;
+                    } else if (char === ',' && !insideQuotes) {
+                        data.push(currentField.trim());
+                        currentField = '';
+                    } else {
+                        currentField += char;
+                    }
+                }
+                data.push(currentField.trim());
+
+                console.log('Line data:', data);
+
+                if (data.length >= 4) {
+                    result.push({
+                        date: data[0],
+                        english: data[1],
+                        chinese: data[2],
+                        example: data[3]
+                    });
+                }
+            }
+            return result;
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            document.getElementById('question').style.display = 'none';
+            document.getElementById('hintBtn').style.display = 'none';
+            document.getElementById('hint').style.display = 'none';
+            document.getElementById('options').innerHTML = '';
+            document.getElementById('submitBtn').style.display = 'none';
+            document.getElementById('nextBtn').style.display = 'none';
+            document.getElementById('result').style.display = 'none';
+        }
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function getRandomQuestion() {
+            if (words.length === 0) {
+                showError('請先上傳CSV檔案');
+                return;
+            }
+
+            if (usedQuestions.length === words.length) {
+                showFinalResult();
+                return;
+            }
+
+            let availableWords = words.filter(w => !usedQuestions.includes(w));
+            currentQuestion = availableWords[Math.floor(Math.random() * availableWords.length)];
+            usedQuestions.push(currentQuestion);
+
+            // 使用CSV中的例句
+            const questionSentence = currentQuestion.example || "Please ______ the missing word.";
+            correctAnswer = currentQuestion.english;
+
+            // 生成選項
+            let options = [currentQuestion];
+            while (options.length < 4) {
+                let randomWord = words[Math.floor(Math.random() * words.length)];
+                if (!options.includes(randomWord)) options.push(randomWord);
+            }
+            options = shuffle(options);
+
+            // 顯示題目
+            document.getElementById('question').innerHTML = questionSentence;
+            document.getElementById('question').style.display = 'block';
+
+            // 設置提示按鈕
+            document.getElementById('hintBtn').style.display = 'block';
+            document.getElementById('hint').innerHTML = `提示：${currentQuestion.chinese}`;
+            document.getElementById('hint').style.display = 'none';
+
+            // 顯示選項
+            let optionsHtml = '';
+            options.forEach((option, index) => {
+                const optionText = option.english;
+                optionsHtml += `
+                    <div class="option">
+                        <input type="radio" name="answer" value="${optionText}" id="opt${index}">
+                        <label for="opt${index}">${optionText}</label>
+                    </div>`;
+            });
+            document.getElementById('options').innerHTML = optionsHtml;
+
+            document.getElementById('submitBtn').style.display = 'inline-block';
+            document.getElementById('nextBtn').style.display = 'none';
+            document.getElementById('result').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function showHint() {
+            const hintText = document.getElementById('hint');
+            hintText.style.display = 'block';
+            document.getElementById('hintBtn').style.display = 'none';
+        }
+
+        function checkAnswer() {
+            const selected = document.querySelector('input[name="answer"]:checked');
+            if (!selected) {
+                alert('請選擇一個答案！');
+                return;
+            }
+
+            const isCorrect = selected.value === correctAnswer;
+            if (isCorrect) score++;
+
+            document.getElementById('result').innerHTML = 
+                `答案: ${correctAnswer}<br>` +
+                `你的選擇: ${selected.value}<br>` +
+                `${isCorrect ? '正確！' : '錯誤！'}`;
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('submitBtn').style.display = 'none';
+            document.getElementById('nextBtn').style.display = 'inline-block';
+        }
+
+        function nextQuestion() {
+            getRandomQuestion();
+        }
+
+        function showFinalResult() {
+            document.getElementById('question').innerHTML = '測驗結束！';
+            document.getElementById('hintBtn').style.display = 'none';
+            document.getElementById('hint').style.display = 'none';
+            document.getElementById('options').innerHTML = '';
+            document.getElementById('result').innerHTML = 
+                `總分: ${score}/${totalQuestions}<br>` +
+                `正確率: ${Math.round((score/totalQuestions)*100)}%`;
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('submitBtn').style.display = 'none';
+            document.getElementById('nextBtn').style.display = 'none';
+        }
+    </script>
+</div>
+</body>
+</html>
